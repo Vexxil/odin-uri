@@ -77,20 +77,26 @@ func parseAuthority(runes []rune) (string, error) {
 	if string(runes[0:2]) != "//" {
 		return "", errors.New("no authority")
 	}
-	runes = runes[2:]
+	index := 2
+	runes = runes[index:]
 	authority := ""
-	if userInfo, i, uiErr := parseUserInfo(runes); uiErr != nil {
+	userInfo, i, uiErr := parseUserInfo(runes)
+	if uiErr != nil {
 		if runes[3] != '@' {
 			return "", errors.New(fmt.Sprintf("invalid authority: %s", uiErr.Error()))
 		}
 		authority = userInfo + "@"
 		runes = runes[i:]
 	}
-	host, hostErr := parseHost(runes)
+	index += i
+	host, end, hostErr := parseHost(runes)
 	if hostErr == nil {
 		authority = authority + host
 	}
-
+	index += end
+	if runes[index] == ':' {
+		parsePort(runes)
+	}
 	return "", errors.New("invalid authority")
 }
 
@@ -122,35 +128,39 @@ func parseUserInfo(runes []rune) (string, int, error) {
 	return string(userInfo), i, nil
 }
 
-func parseHost(runes []rune) (string, error) {
-	ipLit, ipLitErr := parseIpLiteral(runes)
+func parseHost(runes []rune) (string, int, error) {
+	index := 0
+	ipLit, end, ipLitErr := parseIpLiteral(runes)
 	if ipLitErr == nil {
-		return ipLit, nil
+		index += end
+		return ipLit, index, nil
 	}
-	ipv4, _, ipv4Err := parseIpv4(runes)
+	ipv4, end, ipv4Err := parseIpv4(runes)
 	if ipv4Err == nil {
-		return ipv4, nil
+		index += end
+		return ipv4, index, nil
 	}
-	regHost, rhErr := parseRegHost(runes)
+	regHost, end, rhErr := parseRegHost(runes)
 	if rhErr == nil {
-		return regHost, nil
+		index += end
+		return regHost, index, nil
 	}
-	return "", errors.New("invalid host")
+	return "", -1, errors.New("invalid host")
 }
 
-func parseRegHost(runes []rune) (string, error) {
+func parseRegHost(runes []rune) (string, int, error) {
 	if len(runes) == 0 {
-		return "", errors.New("no host name")
+		return "", -1, errors.New("no host name")
 	}
+	index := 0
 	regHost := make([]rune, 0)
-	i := 0
-	for i < len(runes) {
-		r := runes[i]
-		i++
+	for index < len(runes) {
+		r := runes[index]
+		index++
 		if !isReserved(r) || isSubDelim(r) {
 			regHost = append(regHost, r)
 		} else {
-			pctEncoded, pctErr := parsePctEncoded(runes[i : i+2])
+			pctEncoded, pctErr := parsePctEncoded(runes[index : index+2])
 			if pctErr == nil {
 				// TODO is this right?
 				continue
@@ -160,31 +170,60 @@ func parseRegHost(runes []rune) (string, error) {
 		}
 	}
 	if len(regHost) == 0 {
-		return "", errors.New("no host name")
+		return "", -2, errors.New("no host name")
 	}
-	return string(regHost), nil
+	return string(regHost), index, nil
 }
 
-func parsePort() {
-
-}
-
-func parseIpLiteral(runes []rune) (string, error) {
+func parsePort(runes []rune) (string, int, error) {
 	if len(runes) == 0 {
-		return "", errors.New("no ip literal")
+		return "", -1, errors.New("no port")
 	}
-	if runes[0] != '[' {
-		return "", errors.New("invalid ip literal: missing '['")
+	index := 0
+	port := make([]rune, 0)
+	for i, r := range runes {
+		if isDigit(r) {
+			if i == 0 && r == '0' {
+				return "", -1, errors.New("invalid port: 0 is reserved")
+			}
+			index++
+			port = append(port, r)
+			continue
+		}
+		if i == 0 {
+			return "", -1, errors.New("invalid port: must be between 1 and 65535")
+		}
+		if i >= 5 {
+			return "", -1, errors.New("invalid port: exceeds range")
+		}
+		break
+	}
+	parsed, _ := strconv.ParseInt(string(port), 10, 32)
+	if parsed > 65535 {
+		return "", -1, errors.New("invalid port: exceeds range")
+	}
+	return string(port), index, nil
+}
+
+func parseIpLiteral(runes []rune) (string, int, error) {
+	index := 0
+	if len(runes) == 0 {
+		return "", -1, errors.New("no ip literal")
+	}
+	if runes[index] != '[' {
+		return "", -1, errors.New("invalid ip literal: missing '['")
 	}
 	ipv6, end, ipv6Err := parseIpv4(runes[1:])
 	if ipv6Err == nil && runes[end-1] == ']' {
-		return "[" + ipv6 + "]", nil
+		index += end
+		return "[" + ipv6 + "]", index, nil
 	}
 	ipvf, end, ipvfErr := parseIpvFuture(runes[1:])
 	if ipvfErr == nil && runes[end-1] == ']' {
-		return "[" + ipvf + "]", nil
+		index += end
+		return "[" + ipvf + "]", index, nil
 	}
-	return "", errors.New("invalid ip-literal")
+	return "", -1, errors.New("invalid ip-literal")
 }
 
 func parseIpv4(runes []rune) (string, int, error) {

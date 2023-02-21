@@ -2,6 +2,7 @@ package odin_uri
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -50,13 +51,13 @@ func TestParseIpv4(t *testing.T) {
 
 func TestParseHost(t *testing.T) {
 	runes := bytes.Runes([]byte("123.12.12.123"))
-	host, err := parseHost(runes)
+	host, _, err := parseHost(runes)
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 	runes = bytes.Runes([]byte("testhost"))
-	host, err = parseHost(runes)
+	host, _, err = parseHost(runes)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -85,5 +86,35 @@ func TestParseIpvFuture(t *testing.T) {
 	}
 	if ipvf != "v1.3fh3:e234" {
 		t.Fatalf("%s != %s", ipvf, "v1.3fh3:e234")
+	}
+}
+
+func TestParsePort(t *testing.T) {
+	runes := bytes.Runes([]byte("0"))
+	_, _, err := parsePort(runes)
+	if err == nil {
+		t.Fatal(err)
+		return
+	}
+	runes = bytes.Runes([]byte("1"))
+	port, _, err := parsePort(runes)
+	if err != nil {
+		t.Fatal(fmt.Sprintf("'1' should be valid port: %s", err.Error()))
+		return
+	}
+	if port != "1" {
+		t.Fatal(fmt.Sprintf("%s != 1", port))
+		return
+	}
+	runes = bytes.Runes([]byte("65536"))
+	_, _, err = parsePort(runes)
+	if err == nil {
+		t.Fatal("'65536' should be invalid port")
+		return
+	}
+	runes = bytes.Runes([]byte("123456"))
+	_, _, err = parsePort(runes)
+	if err == nil {
+		t.Fatal("'123456' should be an invalid port")
 	}
 }
