@@ -49,7 +49,7 @@ func ParseUri(value string) (URI, error) {
 		return nil, schemaErr
 	}
 
-	var authority, authorityErr = parseAuthority(runes[colonIndex+1:])
+	authority, _, authorityErr := parseAuthority(runes[colonIndex+1:])
 	if authorityErr != nil {
 		if authorityErr.Error() == "no authority" {
 
@@ -73,9 +73,9 @@ func parseSchema(runes []rune) (string, error) {
 	return string(runes), nil
 }
 
-func parseAuthority(runes []rune) (string, error) {
+func parseAuthority(runes []rune) (string, int, error) {
 	if string(runes[0:2]) != "//" {
-		return "", errors.New("no authority")
+		return "", -1, errors.New("no authority")
 	}
 	index := 2
 	runes = runes[index:]
@@ -83,21 +83,26 @@ func parseAuthority(runes []rune) (string, error) {
 	userInfo, i, uiErr := parseUserInfo(runes)
 	if uiErr != nil {
 		if runes[3] != '@' {
-			return "", errors.New(fmt.Sprintf("invalid authority: %s", uiErr.Error()))
+			return "", -1, errors.New(fmt.Sprintf("invalid authority: %s", uiErr.Error()))
 		}
 		authority = userInfo + "@"
 		runes = runes[i:]
 	}
 	index += i
 	host, end, hostErr := parseHost(runes)
+	println(host)
 	if hostErr == nil {
 		authority = authority + host
 	}
 	index += end
 	if runes[index] == ':' {
-		parsePort(runes)
+		port, end, portErr := parsePort(runes)
+		if portErr == nil {
+			index += end
+			authority = authority + ":" + port
+		}
 	}
-	return "", errors.New("invalid authority")
+	return authority, index, nil
 }
 
 func parsePath(runes []rune) (string, error) {
@@ -112,16 +117,17 @@ func parseUserInfo(runes []rune) (string, int, error) {
 		r := runes[i]
 		if r == ':' {
 			userInfo = append(userInfo, ':')
-		} else if isSubDelim(r) || !isReserved(r) {
+		} else if isSubDelim(r) || isUnreserved(r) {
 			userInfo = append(userInfo, r)
 		} else {
 			pctEncoded, pctErr := parsePctEncoded(runes[i:])
-			if pctErr != nil {
-				return "", -1, errors.New("invalid user-info")
+			if pctErr == nil {
+				userInfo = append(userInfo, pctEncoded...)
+				i += 3
+				continue
+			} else {
+				break
 			}
-			userInfo = append(userInfo, pctEncoded...)
-			i += 3
-			continue
 		}
 		i++
 	}
@@ -156,7 +162,9 @@ func parseRegHost(runes []rune) (string, int, error) {
 	regHost := make([]rune, 0)
 	for index < len(runes) {
 		r := runes[index]
-		index++
+		if r == '/' {
+			break
+		}
 		if !isReserved(r) || isSubDelim(r) {
 			regHost = append(regHost, r)
 		} else {
@@ -168,6 +176,7 @@ func parseRegHost(runes []rune) (string, int, error) {
 				regHost = append(regHost, pctEncoded...)
 			}
 		}
+		index++
 	}
 	if len(regHost) == 0 {
 		return "", -2, errors.New("no host name")
