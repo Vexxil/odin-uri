@@ -243,7 +243,37 @@ func parseIpv6(runes []rune) (string, int, error) {
 }
 
 func parseIpvFuture(runes []rune) (string, int, error) {
-	panic("")
+	if len(runes) == 0 {
+		return "", -1, errors.New("no ipv future")
+	}
+	if runes[0] != 'v' {
+		return "", -1, errors.New("invalid ipv future: missing leading 'v'")
+	}
+	sub := runes[1:]
+	index := 1
+	for i, r := range sub {
+		index++
+		if r == '.' {
+			if i < 1 {
+				return "", -1, errors.New("invalid ipv future: misplaced '.'")
+			}
+			break
+		}
+		if !isHexDigit(r) {
+			return "", -1, errors.New(fmt.Sprintf("invalid ipv future: index %d", index))
+		}
+	}
+	sub = sub[index-1:]
+	for i, r := range sub {
+		index++
+		if isUnreserved(r) || isSubDelim(r) || r == ':' {
+			continue
+		}
+		if i == 0 {
+			return "", -1, errors.New(fmt.Sprintf("invalid ipv future: index %d", index))
+		}
+	}
+	return string(runes[0:index]), index, nil
 }
 
 func parsePctEncoded(runes []rune) ([]rune, error) {
@@ -259,7 +289,7 @@ func parsePctEncoded(runes []rune) ([]rune, error) {
 	}
 	res = append(res, '%')
 	for _, r := range runes[1:2] {
-		if !strings.ContainsRune(pctEncoding, r) {
+		if !isHexDigit(r) {
 			return []rune{}, errors.New(fmt.Sprintf("invalid pct-encoding: %c is not in range", r))
 		}
 		res = append(res, r)
@@ -277,12 +307,20 @@ func runeIndex(runes []rune, value rune) int {
 	return -1
 }
 
+func isHexDigit(value rune) bool {
+	return strings.ContainsRune(pctEncoding, value)
+}
+
 func isSubDelim(value rune) bool {
 	return strings.ContainsRune(subDelims, value)
 }
 
 func isReserved(value rune) bool {
 	return strings.ContainsRune(genDelims, value) || strings.ContainsRune(subDelims, value)
+}
+
+func isUnreserved(value rune) bool {
+	return !isReserved(value)
 }
 
 func isAlpha(value rune) bool {

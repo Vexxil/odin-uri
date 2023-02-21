@@ -65,3 +65,25 @@ func TestParseHost(t *testing.T) {
 		t.Fatalf("%s != %s", host, "testhost")
 	}
 }
+
+func TestParseIpvFuture(t *testing.T) {
+	runes := bytes.Runes([]byte("v8.2"))
+	ipvf, _, ipvfErr := parseIpvFuture(runes)
+	if ipvfErr != nil {
+		t.Fatal(ipvfErr)
+		return
+	}
+	if ipvf != "v8.2" {
+		t.Fatalf("%s != %s", ipvf, "v8.2")
+		return
+	}
+	runes = bytes.Runes([]byte("v1.3fh3:e234"))
+	ipvf, _, ipvfErr = parseIpvFuture(runes)
+	if ipvfErr != nil {
+		t.Fatal(ipvfErr)
+		return
+	}
+	if ipvf != "v1.3fh3:e234" {
+		t.Fatalf("%s != %s", ipvf, "v1.3fh3:e234")
+	}
+}
