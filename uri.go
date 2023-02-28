@@ -78,25 +78,22 @@ func parseAuthority(runes []rune) (string, int, error) {
 		return "", -1, errors.New("no authority")
 	}
 	index := 2
-	runes = runes[index:]
 	authority := ""
-	userInfo, i, uiErr := parseUserInfo(runes)
-	if uiErr != nil {
-		if runes[3] != '@' {
-			return "", -1, errors.New(fmt.Sprintf("invalid authority: %s", uiErr.Error()))
+	userInfo, i, uiErr := parseUserInfo(runes[index:])
+	if uiErr == nil {
+		if len(runes) > index+i && runes[index+i] == '@' {
+			authority = userInfo + "@"
+			index += i
 		}
-		authority = userInfo + "@"
-		runes = runes[i:]
 	}
-	index += i
-	host, end, hostErr := parseHost(runes)
-	println(host)
+	host, end, hostErr := parseHost(runes[index:])
 	if hostErr == nil {
+		index += end
 		authority = authority + host
 	}
-	index += end
-	if runes[index] == ':' {
-		port, end, portErr := parsePort(runes)
+	if len(runes) < index && runes[index] == ':' {
+		index++
+		port, end, portErr := parsePort(runes[index:])
 		if portErr == nil {
 			index += end
 			authority = authority + ":" + port

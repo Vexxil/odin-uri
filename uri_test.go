@@ -20,6 +20,28 @@ func TestParseUriHttp(t *testing.T) {
 	}
 }
 
+func TestParseAuthority(t *testing.T) {
+	runes := bytes.Runes([]byte("//google.com"))
+	auth, _, err := parseAuthority(runes)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	if auth != "google.com" {
+		t.Fatal(fmt.Sprintf("%s != google.com", auth))
+		return
+	}
+	runes = bytes.Runes([]byte("//test@google.com"))
+	auth, _, err = parseAuthority(runes)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	if auth != "test@google.com" {
+		t.Fatal(fmt.Sprintf("%s != test@google.com", auth))
+	}
+}
+
 func TestParsePctEncoding(t *testing.T) {
 	runes := []rune{'%', '1', 'f'}
 	_, err := parsePctEncoded(runes)
