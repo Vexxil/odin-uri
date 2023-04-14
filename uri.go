@@ -22,6 +22,7 @@ type URI interface {
 type uri struct {
 	schema    string
 	authority string
+	path      string
 }
 
 func (u uri) Schema() string {
@@ -49,16 +50,23 @@ func ParseUri(value string) (URI, error) {
 		return nil, schemaErr
 	}
 
-	authority, _, authorityErr := parseAuthority(runes[colonIndex+1:])
+	authority, authEnd, authorityErr := parseAuthority(runes[colonIndex+1:])
 	if authorityErr != nil {
-		if authorityErr.Error() == "no authority" {
-
-		} else {
+		if authorityErr.Error() != "no authority" {
 			return nil, authorityErr
 		}
+	} else {
+		colonIndex += authEnd + 1
 	}
 
-	return uri{schema, authority}, nil
+	path, pathEnd, pathErr := parsePath(runes[colonIndex:])
+	if pathErr != nil {
+		return nil, pathErr
+	} else {
+		colonIndex += pathEnd
+	}
+
+	return uri{schema, authority, path}, nil
 }
 
 func parseSchema(runes []rune) (string, error) {
@@ -102,8 +110,57 @@ func parseAuthority(runes []rune) (string, int, error) {
 	return authority, index, nil
 }
 
-func parsePath(runes []rune) (string, error) {
-	panic("todo")
+func parsePath(runes []rune) (string, int, error) {
+	if len(runes) == 0 {
+		return "", 0, nil
+	}
+	if len(runes) == 1 && runes[0] == '/' {
+		return "/", 1, nil
+	}
+	pathAbempty, abEnd, abErr := parsePathAbEmpty(runes)
+	if abErr == nil {
+		return "/" + pathAbempty, 1 + abEnd, nil
+	}
+	return "", -1, abErr
+}
+
+func parsePathAbEmpty(runes []rune) (string, int, error) {
+	if len(runes) == 0 {
+		return "", -1, errors.New("no path-abempty")
+	}
+	pathAbempty := make([]rune, 0)
+	index := 0
+	runeLen := len(runes)
+	for index < runeLen {
+		r := runes[index]
+		if r != '/' {
+			return "", -1, errors.New("invalid path-abempty: segment does not start with '/'")
+		}
+		index++
+		for index < runeLen {
+			r = runes[index]
+			if isUnreserved(r) || isSubDelim(r) || r == '@' || r == ':' {
+				pathAbempty = append(pathAbempty, r)
+				index++
+				continue
+			} else if r == '%' {
+				if len(runes[index:]) < 3 {
+					return "", -1, errors.New("invalid path: invalid percent encoding")
+				}
+				pctEncoded, pctErr := parsePctEncoded(runes[index:])
+				if pctErr != nil {
+					pathAbempty = append(pathAbempty, runes[index:index+2]...)
+					return "", -1, errors.New(fmt.Sprintf("invalid path: %s", string(pathAbempty)))
+				}
+				index += 3
+				pathAbempty = append(pathAbempty, pctEncoded...)
+			} else if r == '/' {
+				pathAbempty = append(pathAbempty, r)
+			}
+			index++
+		}
+	}
+	return string(pathAbempty), index, nil
 }
 
 func parseUserInfo(runes []rune) (string, int, error) {

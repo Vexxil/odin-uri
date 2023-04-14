@@ -140,3 +140,38 @@ func TestParsePort(t *testing.T) {
 		t.Fatal("'123456' should be an invalid port")
 	}
 }
+
+func TestParsePath(t *testing.T) {
+	runes := bytes.Runes([]byte("/"))
+	path, _, pathErr := parsePath(runes)
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if path != "/" {
+		t.Fatal(fmt.Sprintf("%s != /", path))
+	}
+
+	runes = bytes.Runes([]byte(""))
+	_, _, pathErr = parsePath(runes)
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+
+	runes = bytes.Runes([]byte("/seg"))
+	path, _, pathErr = parsePath(runes)
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if path != "/seg" {
+		t.Fatal(fmt.Sprintf("%s != /seg", path))
+	}
+
+	runes = bytes.Runes([]byte("/seg1/seg2"))
+	path, _, pathErr = parsePath(runes)
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if path != "/seg1/seg2" {
+		t.Fatal(fmt.Sprintf("%s != /seg1/seg2", path))
+	}
+}
