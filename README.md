@@ -1,6 +1,6 @@
-# Odin - URI
+# Odin URI
 
---- 
+---
 
 This library is a component of the greater Odin project. Go to the official [Vexxil](http://www.vexxil.com/projects/odin) site for more information on the project.
 
